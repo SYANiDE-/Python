@@ -1,5 +1,5 @@
 # Python
-Home of python scripts/modules
+Home of python modules I've created... ready for import and implement however you will!
 
 Here you will find scripts, programs, modules, all teh things.  Some useful, some WTF, and some oh cool but impractical.
 
