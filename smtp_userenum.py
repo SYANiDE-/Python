@@ -83,15 +83,12 @@ class smtp():
 
     def printer(self):
         tmplist = []
-        with open("./SMTPUsers." + self.METHOD + ".txt", "w") as f:
-            pass
-        f.close()
         masterlist = list(set(self.EXIST))
         masterlist.sort()
         self.EXIST = masterlist
         print("\n\n[#] Found total " + str(len(self.EXIST)) + " valid users:")
         if len(masterlist) > 0:
-            with open("./SMTPUsers." + self.METHOD + ".txt", "a") as f:
+            with open("./SMTPUsers." + self.METHOD + ".txt", "wb") as f:
                 for item in self.EXIST[:]:
                     print(item)
                     f.write(item)
