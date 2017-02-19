@@ -91,7 +91,7 @@ class smtp():
             with open("./SMTPUsers." + self.METHOD + ".txt", "wb") as f:
                 for item in self.EXIST[:]:
                     print(item)
-                    f.write(item)
+                    f.write(item.replace('\r', '') +"\n")
             f.close()
             print("[#] Banners:")
             for item in self.BANNERS[:]:
