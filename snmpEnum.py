@@ -3,7 +3,7 @@ import argparse as ap, subprocess
 from concurrent import futures
 
 
-p = ap.ArgumentParser(description="Enum SNMP Processes, Programs, Process Paths, Storage Paths, Software Names, Users, Ports")
+p = ap.ArgumentParser(description="Enum SNMP Processes, Programs, Process Paths, Storage Paths, Software Names, Users, Ports, hostnames, system descriptions.  Finds working community strings then performs individual OID queries via SNMPWALK.")
 p.add_argument("-c", "--cmty", help="Single community string", type=str)
 p.add_argument("-C", "--CMTY", type=str, help="File containing community strings")
 p.add_argument("-i", "--ip", type=str, help="Single IP address")
@@ -11,7 +11,7 @@ p.add_argument("-I", "--IP", type=str, help="File containing IP addresses")
 p.add_argument("-p", "--port", type=int, help="Port", default=161)
 p.add_argument("-v", "--version", help="SNMP version 1|2c", type=str, default="1")
 p.add_argument("-a", "--async", help="Number of IPs to BF against asyncronously.", type=int, default=1)
-p.add_argument("-t", "--timeout", help="Timeout on an IP after N seconds", type=int, default=5)
+p.add_argument("-t", "--timeout", help="Timeout on a query after N seconds", type=int, default=5)
 a = p.parse_args()
 
 class snmp():
@@ -53,7 +53,7 @@ class snmp():
     def worker(self, bravo):
         delim=":"; WORKING_CMTYS = []
         for cmty in self.CMTY[:]:
-            out, err = subprocess.Popen("timeout " + str(a.timeout) + "snmpwalk -Ov -c " + cmty + " -v " + self.ver + " " + bravo + ":" + str(self.port) + " 1.3.6.1.2.1.1.3", shell=True, stdout=subprocess.PIPE).communicate()
+            out, err = subprocess.Popen("timeout " + str(a.timeout) + " snmpwalk -Ov -c " + cmty + " -v " + self.ver + " " + bravo + ":" + str(self.port) + " 1.3.6.1.2.1.1.3", shell=True, stdout=subprocess.PIPE).communicate()
             out = out.splitlines()
             if len(out) >= 1:
                 WORKING_CMTYS.append(cmty)
@@ -70,7 +70,7 @@ class snmp():
                                 self.__DATA.append(bravo + delim + cmty + delim + tid + delim + line.split(":")[-1].strip(' "'))
 
     def repeater(self, bb):
-        print("[#] Narrowing down to working community strings and responsive hosts.\n[#] Please be patient, and Timeout warnings are normal for this step.")
+        print("[#] Narrowing down to working community strings and responsive hosts.\n[#] Please be patient.")
         with futures.ThreadPoolExecutor(max_workers=a.async) as executor:
             for i in bb[:]:
                 executor.submit(self.worker, i.strip("\n"))
