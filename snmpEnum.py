@@ -137,6 +137,7 @@ class snmp():
                             if phrase == "System Description": spliton="STRING:"
                             if not line.find("End of MIB") != -1:
                                 self.__DATA.append(bravo + delim + cmty + delim + tid + delim + line.split(spliton)[-1].strip(' "'))
+
                 _PROC = self.compressor(self.PROC, cmty, bravo)
                 _NET = self.compressor(self.NET, cmty, bravo)
                 _SHARE = self.compressor(self.SHARE, cmty, bravo)
@@ -204,39 +205,43 @@ class snmp():
         f.close()
         self.counter()
         print("[#] Raw output written to ./SNMPEnum.raw in format <ip>:<cmty>:<branch>:<val>")
+        print("[#] Stats output written to ./SNMPEnum.stats")
 
     def counter(self):
-        print("\n[#] Stats for n3rds")
-        for IP in self.MASTERLIST_IPS:
-            ipcount=0
-            for cmty in self.CMTY:
-                IPCOUNT = 0; cmtycount=0; a=0; b=0; c=0; d=0; e=0; f=0; g=0; h=0; i=0
-                for line in self.__DATA:
-                    if line.find(IP + ":") != -1 and line.find(":" + cmty + ":") != -1 and ipcount == 0 and cmtycount == 0:
-                        cmtycount+=1; ipcount+=1
-                        print("" + IP + ":" + cmty)
-                    if line.find(IP + ":") != -1 and line.find(":" + cmty + ":") != -1:
-                        IPCOUNT+=1
-                        if line.find(self.OIDS[4][2]) != -1: a+=1
-                        if line.find(self.SHARE[0][2]) != -1: b+=1
-                        if line.find(self.PROC[0][2]) != -1: c+=1
-                        if line.find(self.OIDS[5][2]) != -1: d+=1
-                        if line.find(self.OIDS[6][2]) != -1: e+=1
-                        if line.find(self.NET[0][2]) != -1: f+=1
-                        if line.find(self.ROUTE[0][2]) != -1: g+=1
-                        if line.find(self.TCP[0][2]) != -1: h+=1
-                        if line.find(self.UDP[0][2]) != -1: i+=1
-                        if line.find(self.OIDS[0][2]) != -1: print(self.OIDS[0][1] + ": " + line.split("SYSDESCR_L:")[-1])
-                        if line.find(self.OIDS[1][2]) != -1: print(self.OIDS[1][1] + ": " + line.split(":")[-1])
-                        if line.find(self.OIDS[2][2]) != -1: print(self.OIDS[2][1] + ": " + line.split(":")[-1])
-                        if line.find(self.OIDS[3][2]) != -1: print(self.OIDS[3][1] + ": " + line.split(":")[-1])
-                if IPCOUNT != 0:
-                    print("Total Lines: " + str(IPCOUNT))
-                    print(("%-5s %-6s %-5s %-8s %-9s %-7s %-6s %-8s %-8s") % (self.OIDS[4][2],
-                            self.SHARE[0][2], self.PROC[0][2], self.OIDS[5][2], self.OIDS[6][2],
-                            self.NET[0][2], self.ROUTE[0][2], self.TCP[0][2], self.UDP[0][2]))
-                    print(("%-5s %-6s %-5s %-8s %-9s %-7s %-6s %-8s %-8s\n") % (str(a), str(b),
-                            str(c), str(d), str(e), str(f), str(g), str(h), str(i)))
+        with open("./SNMPEnum.stats", "wb") as z:
+            z.write("\n[#] Stats for n3rds\n")
+            for IP in self.MASTERLIST_IPS:
+                ipcount=0
+                for cmty in self.CMTY:
+                    IPCOUNT = 0; cmtycount=0; a=0; b=0; c=0; d=0; e=0; f=0; g=0; h=0; i=0
+                    for line in self.__DATA:
+                        if line.find(IP + ":") != -1 and line.find(":" + cmty + ":") != -1 and ipcount == 0 and cmtycount == 0:
+                            cmtycount+=1; ipcount+=1
+                            z.write(IP + ":" + cmty +"\n")
+                        if line.find(IP + ":") != -1 and line.find(":" + cmty + ":") != -1:
+                            IPCOUNT+=1
+                            if line.find(self.OIDS[4][2]) != -1: a+=1
+                            if line.find(self.SHARE[0][2]) != -1: b+=1
+                            if line.find(self.PROC[0][2]) != -1: c+=1
+                            if line.find(self.OIDS[5][2]) != -1: d+=1
+                            if line.find(self.OIDS[6][2]) != -1: e+=1
+                            if line.find(self.NET[0][2]) != -1: f+=1
+                            if line.find(self.ROUTE[0][2]) != -1: g+=1
+                            if line.find(self.TCP[0][2]) != -1: h+=1
+                            if line.find(self.UDP[0][2]) != -1: i+=1
+                            if line.find(self.OIDS[0][2]) != -1: z.write(self.OIDS[0][1] + ": " + line.split("SYSDESCR_L:")[-1] +"\n")
+                            if line.find(self.OIDS[1][2]) != -1: z.write(self.OIDS[1][1] + ": " + line.split(":")[-1]+"\n")
+                            if line.find(self.OIDS[2][2]) != -1: z.write(self.OIDS[2][1] + ": " + line.split(":")[-1]+"\n")
+                            if line.find(self.OIDS[3][2]) != -1: z.write(self.OIDS[3][1] + ": " + line.split(":")[-1]+"\n")
+                    if IPCOUNT != 0:
+                        z.write("Total Lines: " + str(IPCOUNT) + "\n")
+                        z.write(("%-5s %-6s %-5s %-8s %-9s %-7s %-6s %-8s %-8s \n") % (self.OIDS[4][2], self.SHARE[0][2], self.PROC[0][2], self.OIDS[5][2], self.OIDS[6][2], self.NET[0][2], self.ROUTE[0][2], self.TCP[0][2], self.UDP[0][2]))
+                        z.write(("%-5s %-6s %-5s %-8s %-9s %-7s %-6s %-8s %-8s \n\n") % (str(a), str(b), str(c), str(d), str(e), str(f), str(g), str(h), str(i)))
+        z.close()
+        with open("./SNMPEnum.stats", "r") as z:
+            print(z.read())
+        z.close()
+
 
 if __name__ == "__main__":
     Alpha = snmp()
