@@ -1,5 +1,5 @@
 #!/usr/bin/env python2.7
-import argparse as ap, subprocess
+import argparse as ap, subprocess, sys
 from concurrent import futures
 
 
@@ -11,11 +11,15 @@ p.add_argument("-I", "--IP", type=str, help="File containing IP addresses")
 p.add_argument("-p", "--port", type=int, help="Port", default=161)
 p.add_argument("-v", "--version", help="SNMP version 1|2c", type=str, default="1")
 p.add_argument("-a", "--async", help="Number of IPs to BF against asyncronously.", type=int, default=1)
-p.add_argument("-t", "--timeout", help="Timeout on single query after N seconds", type=int, default=10)
+p.add_argument("-t", "--timeout", help="Timeout on single query after N seconds", type=int, default=20)
+p.add_argument("-l", "--legend", help="Print output format legend", action="store_true")
 a = p.parse_args()
 
 class snmp():
     def __init__(self):
+        if a.legend == True:
+            self.legend()
+            sys.exit()
         self.OIDS = [
             ["1.3.6.1.2.1.1.1", "System Description", "SYSDESCR_L"],
             ["1.3.6.1.2.1.1.2", "System ObjID", "SYSID_L"],
@@ -28,6 +32,8 @@ class snmp():
         self.PROC = [
             ["1.3.6.1.2.1.25.4.2.1.1", "PIDs", "PROCS"],
             ["1.3.6.1.2.1.25.4.2.1.2", "PROCs", "PROCS"],
+            ["1.3.6.1.2.1.25.4.2.1.6", "PROC TYPE", "PROCS"],
+            ["1.3.6.1.2.1.25.4.2.1.7", "PROC STATUS", "PROCS"],
             ["1.3.6.1.2.1.25.4.2.1.4", "Processes Path", "PROCS"]
         ]
         self.NET = [
@@ -59,126 +65,147 @@ class snmp():
         ]
         self.CMTY = []; self.IPS = []; self.port = a.port; self.ver = a.version
         self.__DATA = []; self._CMTY(); self._IPS(); self.MASTERLIST_IPS = []
-        self.__PROC = []; self.__NET = []; self.__SHARE = []; self.__ROUTE = []
-        self.__TCP = []; self.__UDP = []
+
+    def legend(self):
+        print("SYSDESCR_L, SYSID_L, SYSNAME_L, WORKGROUP, USER, SERVICE, SOFTNAME\n\t<ip>:<cmtystr>:<branch>:<val>")
+        print("PROCS\n\t<ip>:<cmtystr>:PROCS:<PID>:<PROC>:<PROC_TYPE>:<PROC_STATUS>:<PROC_PATH>")
+        print("NETINT\n\t<ip>:<cmtystr>:NETINT:<IP>:<NETMASK>:<INTERFACE>")
+        print("ROUTE\n\t<ip>:<cmtystr>:ROUTE:<DEST>/<MASK>:<Gateway>:<Metric>")
+        print("SHARE\n\t<ip>:<cmtystr>:SHARE:<Share_Name>:<Share_Path>:<Comment>")
+        print("TCPCONN\n\t<ip>:<cmtystr>:TCPCONN:<LADDR>/<LPORT>:<RADDR>/<RPORT>:<STATE>")
+        print("UDPCONN\n\t<ip>:<cmtystr>:UDPCONN:<LADDR>/<LPORT>")
 
     def _CMTY(self):
         if a.CMTY is not None:
-            with open(a.CMTY, "r") as f:
-                self.CMTY = list(set(f.readlines()))
+            with open(a.CMTY, "r") as f: self.CMTY = list(set(f.readlines()))
             f.close()
-        if a.cmty is not None:
-            self.CMTY.append(a.cmty)
+        if a.cmty is not None: self.CMTY.append(a.cmty)
         self.CMTY = [s.replace('\n', '') for s in self.CMTY]
 
 
     def _IPS(self):
         if a.IP is not None:
-            with open(a.IP, "r") as f:
-                self.IPS = list(set(f.readlines()))
+            with open(a.IP, "r") as f: self.IPS = list(set(f.readlines()))
             f.close()
-        if a.ip is not None:
-            self.IPS.append(a.ip)
+        if a.ip is not None: self.IPS.append(a.ip)
         self.IPS = [s.replace('\n', '') for s in self.IPS]
 
     def arb(self, OBJ, cmtystr, ip):
         tmpObj=[]
         oid, phrase, tid = map(str, OBJ)
-        out, err = subprocess.Popen("timeout " + str(a.timeout) + " snmpwalk -Ova -c " + cmtystr + " -v " + self.ver + " " + ip + ":" + str(self.port) + " " + oid, shell=True, stdout=subprocess.PIPE).communicate()
+        out, err = subprocess.Popen("timeout " + str(a.timeout) + " snmpwalk -t " + str(a.timeout) + " -Ova -c " + cmtystr + " -v " + self.ver + " " + ip + ":" + str(self.port) + " " + oid, shell=True, stdout=subprocess.PIPE).communicate()
         out = out.splitlines()
         if len(out) >= 1:
-            if ip not in self.MASTERLIST_IPS:
-                self.MASTERLIST_IPS.append(ip)
+            if ip not in self.MASTERLIST_IPS: self.MASTERLIST_IPS.append(ip)
             for line in out:
                 if not line.find("End of MIB") != -1:
-                    tmpObj.append(line.split(":")[-1].strip(' "'))
-        else:
-            tmpObj.append("NONE")
+                    spliton = ":"
+                    if phrase == "System Description": spliton = "STRING:"
+                    TMP = line.split(spliton)[-1].strip(' "')
+                    if TMP == "": tmpObj.append("NONE")
+                    else: tmpObj.append(TMP)
+        else: tmpObj.append("NONE")
         return tmpObj
 
     def worker(self, bravo):
         delim=":"; WORKING_CMTYS = []
         for cmty in self.CMTY[:]:
-            out, err = subprocess.Popen("timeout " + str(a.timeout) + " snmpwalk -Ov -c " + cmty + " -v " + self.ver + " " + bravo + ":" + str(self.port) + " 1.3.6.1.2.1.1.3", shell=True, stdout=subprocess.PIPE).communicate()
+            out, err = subprocess.Popen("timeout " + str(a.timeout) + " snmpwalk -t " + str(a.timeout) + " -Ov -c " + cmty + " -v " + self.ver + " " + bravo + ":" + str(self.port) + " 1.3.6.1.2.1.1.3", shell=True, stdout=subprocess.PIPE).communicate()
             out = out.splitlines()
-            if len(out) >= 1:
-                WORKING_CMTYS.append(cmty)
+            if len(out) >= 1: WORKING_CMTYS.append(cmty)
         if len(WORKING_CMTYS) != 0:
             for cmty in WORKING_CMTYS[:]:
+                _PROC = []; _NET = []; _SHARE = []; _ROUTE = []; _TCP = []; _UDP = []
+                types = {'1': 'UNKNOWN', '2': 'OS', '3': 'DEV_DRIVER', '4': 'APP', "NONE": "NONE"}
+                statuses = {'1': 'RUNNING', '2': 'RUNNABLE', '3': 'NOT_RUNNABLE', '4': 'INVALID', "NONE": "NONE"}
+                states = {'1': 'CLOSED', '2': 'LISTENING', '3': 'SYN SENT', '4': 'SYN RECVD',
+                          '5': 'ESTABLISHED', '6': 'FIN WAIT 1', '7': 'FIN WAIT 2', '8': 'CLOSE WAIT',
+                          '9': 'LAST ACK', '10': 'CLOSING', '11': 'TIME WAIT', '12': 'DELETE', "NONE": "NONE"}
                 for oid, phrase, tid in self.OIDS[:]:
-                    out, err = subprocess.Popen("timeout " + str(a.timeout) + " snmpwalk -Ov -c " + cmty + " -v " + self.ver + " " + bravo + ":" + str(self.port) + " " + oid, shell=True, stdout=subprocess.PIPE).communicate()
+                    out, err = subprocess.Popen("timeout " + str(a.timeout) + " snmpwalk -t " + str(a.timeout) + " -Ov -c " + cmty + " -v " + self.ver + " " + bravo + ":" + str(self.port) + " " + oid, shell=True, stdout=subprocess.PIPE).communicate()
                     out = out.splitlines()
                     if len(out) >= 1:
-                        if bravo not in self.MASTERLIST_IPS:
-                            self.MASTERLIST_IPS.append(bravo)
+                        if bravo not in self.MASTERLIST_IPS: self.MASTERLIST_IPS.append(bravo)
                         for line in out:
+                            spliton=":"
+                            if phrase == "System Description": spliton="STRING:"
                             if not line.find("End of MIB") != -1:
-                                self.__DATA.append(bravo + delim + cmty + delim + tid + delim + line.split(":")[-1].strip(' "'))
+                                self.__DATA.append(bravo + delim + cmty + delim + tid + delim + line.split(spliton)[-1].strip(' "'))
+
                 # Processes
-                self.__PROC.append(self.arb(self.PROC[0], cmty, bravo))
-                self.__PROC.append(self.arb(self.PROC[1], cmty, bravo))
-                self.__PROC.append(self.arb(self.PROC[2], cmty, bravo))
-                for i,j,k in zip(self.__PROC[0][:], self.__PROC[1][:], self.__PROC[2][:]):
-                    self.__DATA.append(bravo + delim + cmty + delim + self.PROC[0][2] + delim + 
-                    i.split(":")[-1].strip(' "') + ":" + 
-                    j.split(":")[-1].strip(' "') + ":" +
-                    k.split(":")[-1].strip(' "'))
+                _PROC.append(self.arb(self.PROC[0], cmty, bravo))
+                _PROC.append(self.arb(self.PROC[1], cmty, bravo))
+                _PROC.append(self.arb(self.PROC[2], cmty, bravo))
+                _PROC.append(self.arb(self.PROC[3], cmty, bravo))
+                _PROC.append(self.arb(self.PROC[4], cmty, bravo))
+                for i,j,k,l,m in zip(_PROC[0][:], _PROC[1][:], _PROC[2][:], _PROC[3][:], _PROC[4][:]):
+                    TYPE = k.split(":")[-1].strip(' "')
+                    STATUS = l.split(":")[-1].strip(' "')
+                    self.__DATA.append(bravo + delim + cmty + delim + self.PROC[0][2] + delim +
+                        i.split(":")[-1].strip(' "') + ":" +
+                        j.split(":")[-1].strip(' "') + ":" +
+                        types[TYPE] + ":" +
+                        statuses[STATUS] + ":" +
+                        m.split(":")[-1].strip(' "').replace("\\\\", '\\'))
                 # Network interfaces
-                self.__NET.append(self.arb(self.NET[0], cmty, bravo))
-                self.__NET.append(self.arb(self.NET[1], cmty, bravo))
-                self.__NET.append(self.arb(self.NET[2], cmty, bravo))
-                for i,j,k in zip(self.__NET[0][:], self.__NET[1][:], self.__NET[2][:]):
+                _NET.append(self.arb(self.NET[0], cmty, bravo))
+                _NET.append(self.arb(self.NET[1], cmty, bravo))
+                _NET.append(self.arb(self.NET[2], cmty, bravo))
+                for i,j,k in zip(_NET[0][:], _NET[1][:], _NET[2][:]):
                     self.__DATA.append(bravo + delim + cmty + delim + self.NET[0][2] + delim + " " +
                         i.split(":")[-1].strip(' "') + " : " +
                         j.split(":")[-1].strip(' "') + " : " +
                         k.split(":")[-1].strip(' "'))
                 # Shares
-                self.__SHARE.append(self.arb(self.SHARE[0], cmty, bravo))
-                self.__SHARE.append(self.arb(self.SHARE[1], cmty, bravo))
-                self.__SHARE.append(self.arb(self.SHARE[2], cmty, bravo))
-                for i, j, k in zip(self.__SHARE[0][:], self.__SHARE[1][:], self.__SHARE[2][:]):
+                _SHARE.append(self.arb(self.SHARE[0], cmty, bravo))
+                _SHARE.append(self.arb(self.SHARE[1], cmty, bravo))
+                _SHARE.append(self.arb(self.SHARE[2], cmty, bravo))
+                for i, j, k in zip(_SHARE[0][:], _SHARE[1][:], _SHARE[2][:]):
                     self.__DATA.append(bravo + delim + cmty + delim + self.SHARE[0][2] + delim +
-                                       i.split(":")[-1].strip(' "') + ":" +
-                                       j.split(":")[-1].strip(' "') + ":" +
-                                       k.split(":")[-1].strip(' "'))
+                       i.split(":")[-1].strip(' "') + ":" +
+                       j.split(":")[-1].strip(' "') + ":" +
+                       k.split(":")[-1].strip(' "'))
                 # Routes
-                self.__ROUTE.append(self.arb(self.ROUTE[0], cmty, bravo))
-                self.__ROUTE.append(self.arb(self.ROUTE[1], cmty, bravo))
-                self.__ROUTE.append(self.arb(self.ROUTE[2], cmty, bravo))
-                self.__ROUTE.append(self.arb(self.ROUTE[3], cmty, bravo))
-                for i, j, k, l in zip(self.__ROUTE[0][:], self.__ROUTE[1][:], self.__ROUTE[2][:], self.__ROUTE[3][:]):
+                _ROUTE.append(self.arb(self.ROUTE[0], cmty, bravo))
+                _ROUTE.append(self.arb(self.ROUTE[1], cmty, bravo))
+                _ROUTE.append(self.arb(self.ROUTE[2], cmty, bravo))
+                _ROUTE.append(self.arb(self.ROUTE[3], cmty, bravo))
+                for i, j, k, l in zip(_ROUTE[0][:], _ROUTE[1][:], _ROUTE[2][:], _ROUTE[3][:]):
+                    destIP = i.split(":")[-1].strip(' "')
+                    destMask = j.split(":")[-1].strip(' "')
+                    if destIP == "0.0.0.0":  destIP = "*"
+                    if destMask == "0.0.0.0": destMask = "*"
                     self.__DATA.append(bravo + delim + cmty + delim + self.ROUTE[0][2] + delim + " " +
-                                       i.split(":")[-1].strip(' "') + "/" +
-                                       j.split(":")[-1].strip(' "') + " : " +
-                                       k.split(":")[-1].strip(' "')+ " : " +
-                                       l.split(":")[-1].strip(' "'))
+                       destIP + "/" + destMask + " : " + k.split(":")[-1].strip(' "')+ " : " +
+                       l.split(":")[-1].strip(' "'))
                 # TCP connections
-                self.__TCP.append(self.arb(self.TCP[0], cmty, bravo))
-                self.__TCP.append(self.arb(self.TCP[1], cmty, bravo))
-                self.__TCP.append(self.arb(self.TCP[2], cmty, bravo))
-                self.__TCP.append(self.arb(self.TCP[3], cmty, bravo))
-                self.__TCP.append(self.arb(self.TCP[4], cmty, bravo))
-                for i, j, k, l, m in zip(self.__TCP[0][:], self.__TCP[1][:], self.__TCP[2][:], self.__TCP[3][:], self.__TCP[4][:]):
+                _TCP.append(self.arb(self.TCP[0], cmty, bravo))
+                _TCP.append(self.arb(self.TCP[1], cmty, bravo))
+                _TCP.append(self.arb(self.TCP[2], cmty, bravo))
+                _TCP.append(self.arb(self.TCP[3], cmty, bravo))
+                _TCP.append(self.arb(self.TCP[4], cmty, bravo))
+                for i, j, k, l, m in zip(_TCP[0][:], _TCP[1][:], _TCP[2][:], _TCP[3][:], _TCP[4][:]):
+                    state = m.split(":")[-1].strip(' "')
+                    rport = l.split(":")[-1].strip(' "')
+                    if rport == "0": rport = "*"
                     self.__DATA.append(bravo + delim + cmty + delim + self.TCP[0][2] + delim + " " +
-                                       i.split(":")[-1].strip(' "') + "/" +
-                                       j.split(":")[-1].strip(' "') + " : " +
-                                       k.split(":")[-1].strip(' "') + "/" +
-                                       l.split(":")[-1].strip(' "')+ " : " +
-                                       m.split(":")[-1].strip(' "'))
+                       i.split(":")[-1].strip(' "').replace("0.0.0.0", "*") + "/" +
+                       j.split(":")[-1].strip(' "') + " : " +
+                       k.split(":")[-1].strip(' "').replace("0.0.0.0", "*") + "/" +
+                       rport + " : " + states[state])
                 # UDP Connections
-                self.__UDP.append(self.arb(self.UDP[0], cmty, bravo))
-                self.__UDP.append(self.arb(self.UDP[1], cmty, bravo))
-                for i, j in zip(self.__UDP[0][:], self.__UDP[1][:]):
+                _UDP.append(self.arb(self.UDP[0], cmty, bravo))
+                _UDP.append(self.arb(self.UDP[1], cmty, bravo))
+                for i, j in zip(_UDP[0][:], _UDP[1][:]):
+                    rport = j.split(":")[-1].strip(' "')
+                    if rport == "0": rport = "*"
                     self.__DATA.append(bravo + delim + cmty + delim + self.UDP[0][2] + delim + " " +
-                                       i.split(":")[-1].strip(' "') + "/" +
-                                       j.split(":")[-1].strip(' "'))
-
+                       i.split(":")[-1].strip(' "').replace("0.0.0.0", "*") + "/" + rport)
 
     def repeater(self, bb):
         print("[#] Narrowing down to working community strings and responsive hosts.\n[#] Please be patient.")
         with futures.ThreadPoolExecutor(max_workers=a.async) as executor:
-            for i in bb[:]:
-                executor.submit(self.worker, i.strip("\n"))
+            for i in bb[:]: executor.submit(self.worker, i)
 
     def printer(self):
         self.MASTERLIST_IPS.sort()
@@ -197,45 +224,35 @@ class snmp():
     def counter(self):
         print("\n[#] Stats for n3rds")
         for IP in self.MASTERLIST_IPS:
-            ipcount=0; IPCOUNT=0
+            ipcount=0
             for cmty in self.CMTY:
-                cmtycount=0; a=0; b=0; c=0; d=0; e=0; f=0; g=0; h=0; i=0
+                IPCOUNT = 0; cmtycount=0; a=0; b=0; c=0; d=0; e=0; f=0; g=0; h=0; i=0
                 for line in self.__DATA:
                     if line.find(IP + ":") != -1 and line.find(":" + cmty + ":") != -1 and ipcount == 0 and cmtycount == 0:
                         cmtycount+=1; ipcount+=1
                         print("" + IP + ":" + cmty)
                     if line.find(IP + ":") != -1 and line.find(":" + cmty + ":") != -1:
                         IPCOUNT+=1
-                        if line.find(self.OIDS[4][2]) != -1:
-                            a+=1
-                        if line.find(self.SHARE[0][2]) != -1:
-                            b+=1
-                        if line.find(self.PROC[0][2]) != -1:
-                            c+=1
-                        if line.find(self.OIDS[5][2]) != -1:
-                            d+=1
-                        if line.find(self.OIDS[6][2]) != -1:
-                            e += 1
-                        if line.find(self.NET[0][2]) != -1:
-                            f += 1
-                        if line.find(self.ROUTE[0][2]) != -1:
-                            g += 1
-                        if line.find(self.TCP[0][2]) != -1:
-                            h += 1
-                        if line.find(self.UDP[0][2]) != -1:
-                            i += 1
-                        if line.find(self.OIDS[0][2]) != -1:
-                            print(self.OIDS[0][1] + ": " + line.split(":")[-1])
-                        if line.find(self.OIDS[1][2]) != -1:
-                            print(self.OIDS[1][1] + ": " + line.split(":")[-1])
-                        if line.find(self.OIDS[2][2]) != -1:
-                            print(self.OIDS[2][1] + ": " + line.split(":")[-1])
-                        if line.find(self.OIDS[3][2]) != -1:
-                            print(self.OIDS[3][1] + ": " + line.split(":")[-1])
+                        if line.find(self.OIDS[4][2]) != -1: a+=1
+                        if line.find(self.SHARE[0][2]) != -1: b+=1
+                        if line.find(self.PROC[0][2]) != -1: c+=1
+                        if line.find(self.OIDS[5][2]) != -1: d+=1
+                        if line.find(self.OIDS[6][2]) != -1: e+=1
+                        if line.find(self.NET[0][2]) != -1: f+=1
+                        if line.find(self.ROUTE[0][2]) != -1: g+=1
+                        if line.find(self.TCP[0][2]) != -1: h+=1
+                        if line.find(self.UDP[0][2]) != -1: i+=1
+                        if line.find(self.OIDS[0][2]) != -1: print(self.OIDS[0][1] + ": " + line.split("SYSDESCR_L:")[-1])
+                        if line.find(self.OIDS[1][2]) != -1: print(self.OIDS[1][1] + ": " + line.split(":")[-1])
+                        if line.find(self.OIDS[2][2]) != -1: print(self.OIDS[2][1] + ": " + line.split(":")[-1])
+                        if line.find(self.OIDS[3][2]) != -1: print(self.OIDS[3][1] + ": " + line.split(":")[-1])
                 if IPCOUNT != 0:
                     print("Total Lines: " + str(IPCOUNT))
-                    print(("%-5s %-6s %-5s %-8s %-9s %-7s %-6s %-8s %-8s") % (self.OIDS[4][2], self.SHARE[0][2], self.PROC[0][2], self.OIDS[5][2], self.OIDS[6][2], self.NET[0][2], self.ROUTE[0][2], self.TCP[0][2], self.UDP[0][2]))
-                    print(("%-5s %-6s %-5s %-8s %-9s %-7s %-6s %-8s %-8s\n") % (str(a), str(b), str(c), str(d), str(e), str(f), str(g), str(h), str(i)))
+                    print(("%-5s %-6s %-5s %-8s %-9s %-7s %-6s %-8s %-8s") % (self.OIDS[4][2],
+                            self.SHARE[0][2], self.PROC[0][2], self.OIDS[5][2], self.OIDS[6][2],
+                            self.NET[0][2], self.ROUTE[0][2], self.TCP[0][2], self.UDP[0][2]))
+                    print(("%-5s %-6s %-5s %-8s %-9s %-7s %-6s %-8s %-8s\n") % (str(a), str(b),
+                            str(c), str(d), str(e), str(f), str(g), str(h), str(i)))
 
 if __name__ == "__main__":
     Alpha = snmp()
