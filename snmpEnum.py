@@ -107,6 +107,12 @@ class snmp():
         else: tmpObj.append("NONE")
         return tmpObj
 
+    def compressor(self, OBJ, CMTY, IP):
+        TMP = []
+        for x in range(0, len(OBJ), 1):
+            TMP.append(self.arb(OBJ[x], CMTY, IP))
+        return TMP
+
     def worker(self, bravo):
         delim=":"; WORKING_CMTYS = []
         for cmty in self.CMTY[:]:
@@ -131,45 +137,31 @@ class snmp():
                             if phrase == "System Description": spliton="STRING:"
                             if not line.find("End of MIB") != -1:
                                 self.__DATA.append(bravo + delim + cmty + delim + tid + delim + line.split(spliton)[-1].strip(' "'))
-
+                _PROC = self.compressor(self.PROC, cmty, bravo)
+                _NET = self.compressor(self.NET, cmty, bravo)
+                _SHARE = self.compressor(self.SHARE, cmty, bravo)
+                _ROUTE = self.compressor(self.ROUTE, cmty, bravo)
+                _TCP = self.compressor(self.TCP, cmty, bravo)
+                _UDP = self.compressor(self.UDP, cmty, bravo)
                 # Processes
-                _PROC.append(self.arb(self.PROC[0], cmty, bravo))
-                _PROC.append(self.arb(self.PROC[1], cmty, bravo))
-                _PROC.append(self.arb(self.PROC[2], cmty, bravo))
-                _PROC.append(self.arb(self.PROC[3], cmty, bravo))
-                _PROC.append(self.arb(self.PROC[4], cmty, bravo))
                 for i,j,k,l,m in zip(_PROC[0][:], _PROC[1][:], _PROC[2][:], _PROC[3][:], _PROC[4][:]):
                     TYPE = k.split(":")[-1].strip(' "')
                     STATUS = l.split(":")[-1].strip(' "')
                     self.__DATA.append(bravo + delim + cmty + delim + self.PROC[0][2] + delim +
-                        i.split(":")[-1].strip(' "') + ":" +
-                        j.split(":")[-1].strip(' "') + ":" +
-                        types[TYPE] + ":" +
-                        statuses[STATUS] + ":" +
+                        i.split(":")[-1].strip(' "') + ":" + j.split(":")[-1].strip(' "') + ":" +
+                        types[TYPE] + ":" + statuses[STATUS] + ":" +
                         m.split(":")[-1].strip(' "').replace("\\\\", '\\'))
                 # Network interfaces
-                _NET.append(self.arb(self.NET[0], cmty, bravo))
-                _NET.append(self.arb(self.NET[1], cmty, bravo))
-                _NET.append(self.arb(self.NET[2], cmty, bravo))
                 for i,j,k in zip(_NET[0][:], _NET[1][:], _NET[2][:]):
                     self.__DATA.append(bravo + delim + cmty + delim + self.NET[0][2] + delim + " " +
-                        i.split(":")[-1].strip(' "') + " : " +
-                        j.split(":")[-1].strip(' "') + " : " +
+                        i.split(":")[-1].strip(' "') + " : " + j.split(":")[-1].strip(' "') + " : " +
                         k.split(":")[-1].strip(' "'))
                 # Shares
-                _SHARE.append(self.arb(self.SHARE[0], cmty, bravo))
-                _SHARE.append(self.arb(self.SHARE[1], cmty, bravo))
-                _SHARE.append(self.arb(self.SHARE[2], cmty, bravo))
                 for i, j, k in zip(_SHARE[0][:], _SHARE[1][:], _SHARE[2][:]):
                     self.__DATA.append(bravo + delim + cmty + delim + self.SHARE[0][2] + delim +
-                       i.split(":")[-1].strip(' "') + ":" +
-                       j.split(":")[-1].strip(' "') + ":" +
+                       i.split(":")[-1].strip(' "') + ":" + j.split(":")[-1].strip(' "') + ":" +
                        k.split(":")[-1].strip(' "'))
                 # Routes
-                _ROUTE.append(self.arb(self.ROUTE[0], cmty, bravo))
-                _ROUTE.append(self.arb(self.ROUTE[1], cmty, bravo))
-                _ROUTE.append(self.arb(self.ROUTE[2], cmty, bravo))
-                _ROUTE.append(self.arb(self.ROUTE[3], cmty, bravo))
                 for i, j, k, l in zip(_ROUTE[0][:], _ROUTE[1][:], _ROUTE[2][:], _ROUTE[3][:]):
                     destIP = i.split(":")[-1].strip(' "')
                     destMask = j.split(":")[-1].strip(' "')
@@ -179,23 +171,15 @@ class snmp():
                        destIP + "/" + destMask + " : " + k.split(":")[-1].strip(' "')+ " : " +
                        l.split(":")[-1].strip(' "'))
                 # TCP connections
-                _TCP.append(self.arb(self.TCP[0], cmty, bravo))
-                _TCP.append(self.arb(self.TCP[1], cmty, bravo))
-                _TCP.append(self.arb(self.TCP[2], cmty, bravo))
-                _TCP.append(self.arb(self.TCP[3], cmty, bravo))
-                _TCP.append(self.arb(self.TCP[4], cmty, bravo))
                 for i, j, k, l, m in zip(_TCP[0][:], _TCP[1][:], _TCP[2][:], _TCP[3][:], _TCP[4][:]):
                     state = m.split(":")[-1].strip(' "')
                     rport = l.split(":")[-1].strip(' "')
                     if rport == "0": rport = "*"
                     self.__DATA.append(bravo + delim + cmty + delim + self.TCP[0][2] + delim + " " +
-                       i.split(":")[-1].strip(' "').replace("0.0.0.0", "*") + "/" +
-                       j.split(":")[-1].strip(' "') + " : " +
+                       i.split(":")[-1].strip(' "').replace("0.0.0.0", "*") + "/" + j.split(":")[-1].strip(' "') + " : " +
                        k.split(":")[-1].strip(' "').replace("0.0.0.0", "*") + "/" +
                        rport + " : " + states[state])
                 # UDP Connections
-                _UDP.append(self.arb(self.UDP[0], cmty, bravo))
-                _UDP.append(self.arb(self.UDP[1], cmty, bravo))
                 for i, j in zip(_UDP[0][:], _UDP[1][:]):
                     rport = j.split(":")[-1].strip(' "')
                     if rport == "0": rport = "*"
