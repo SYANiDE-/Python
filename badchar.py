@@ -1,4 +1,9 @@
 #!/usr/bin/python
+
+#######
+"It's slop, I admit, but it gets 'er done"
+#######
+
 import sys, argparse, time, struct
 
 
