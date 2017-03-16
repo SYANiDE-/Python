@@ -1,0 +1,23 @@
+#!/usr/bin/env python2.7
+import sys, os, subprocess
+
+def taker():
+    line = "***"
+    masterlist = []
+    print("\n[!!] Give heredoc.  End input with \"EOF\" or \"e\".  Quit with \"exit\".:")
+    while line != "EOF" and line != "exit" and line != "e":
+        line=raw_input("")
+        if line == "exit":
+            sys.exit()
+        if line != "EOF" and line != "e":
+            masterlist.append(line)
+    for item in masterlist:
+        temp = str(subprocess.Popen('whois ' + item + " " + " | grep -iE \"cidr|owner|netname|netrange|inetnum|descr|country|orgname|orgid|route\"",
+            shell=True, stdout=subprocess.PIPE).stdout.read())
+        print("IP: " + item + "\n" + temp)
+
+
+if __name__ == "__main__":
+    while True:
+        taker()
+
