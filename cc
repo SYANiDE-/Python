@@ -1,7 +1,12 @@
 #!/usr/bin/env python2.7
 # coding=utf-8
-
 import sys
+
+#####
+##
+## Takes multiline abbreviated country code input via HEREDOC input style and outputs country code long name.
+##
+#####
 
 stoppers = ['exit', 'Exit', 'EXIT', 'quit', 'Quit', 'QUIT']
 ccs = {'AF': 'Afghanistan', 'AX': 'Aland Islands', 'AL': 'Albania', 'DZ': 'Algeria', 'AS': 'American Samoa',
