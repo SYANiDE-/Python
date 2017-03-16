@@ -1,6 +1,12 @@
 #!/usr/bin/env python2.7
 import sys, os, subprocess
 
+#####
+##
+## Takes multiline IP address input via HEREDOC input style and outputs abbreviated WHOIS identity.
+##
+#####
+
 def taker():
     line = "***"
     masterlist = []
