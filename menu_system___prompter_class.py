@@ -29,7 +29,7 @@ class menu():
 						if uin not in range(1,len(valids)+1):
 							uin = uin - (len(valids)+1)
 							if "cancel" in exits[uin]:
-								return 0
+								return -1
 							if "quit" in exits[uin]:
 								sys.exit()
 				except ValueError:
