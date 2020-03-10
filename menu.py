@@ -44,19 +44,8 @@ class Menu():
         return None
     def back(s):
         return None
-    def add_mapped_option(s,target_list,choice,title,mapped_function):
-        """ Create a mapped menu choice.  Selecting this choice in a menu instead calls a mapped_function rather than
-            the callee returning an index to the selection.  Append to target_list, a dict within a dict such that:
-            
-            target_list.append( { "option": {"This is the title": mapped_function}})
-            i.e., target_list.append({'q':{"quit":sys.exit}})
-            
-            These options should be preferred to be non-numeric
-        """
-        if not choice.isalpha():
-            raise ValueError("Expected non-numeric value for \"choice\"")
-        target_list.append({choice: {title: mapped_function}})
     
+    ### Some privates
     def __printer(s,question,valids,app_adds=[]):
         print("[?] %s" % question)
         for (index,item) in enumerate(valids):
@@ -93,6 +82,20 @@ class Menu():
             print("[!] (truncated \"%s\" from selection)" % digit)
             return None
 
+    ### Some publics
+    def add_mapped_option(s,target_list,choice,title,mapped_function):
+        """ Create a mapped menu choice.  Selecting this choice in a menu instead calls a mapped_function rather than
+            the callee returning an index to the selection.  Append to target_list, a dict within a dict such that:
+            
+            target_list.append( { "option": {"This is the title": mapped_function}})
+            i.e., target_list.append({'q':{"quit":sys.exit}})
+            
+            These options should be preferred to be non-numeric
+        """
+        if not choice.isalpha():
+            raise ValueError("Expected non-numeric value for \"choice\"")
+        target_list.append({choice: {title: mapped_function}})
+
     def index_userin(s,question,valids,app_adds=[]):
         """ Prompt user with question and collect their selection as index to a list of choices
         """
@@ -127,3 +130,34 @@ class Menu():
                             dest.append(result)
                 if len(dest) > 0:
                     return dest
+
+                
+NOTES="""
+### In a separate file, would include and use like this: ###
+
+
+#!/usr/bin/env python2
+import os, sys, re
+import menu
+
+def main():
+    M = menu.Menu()
+    mainmenu1 = []
+    #M.add_mapped_option(mainmenu1,'c','cancel',M.cancel)
+    M.add_mapped_option(mainmenu1,'b','back',M.back)
+    M.add_mapped_option(mainmenu1,'q','quit',M.quit)
+    stack1 = M.stack()
+    tests = ['alpha','beta','gamma','delta','echo']
+    resp = M.index_userin("Is this sane?",tests,mainmenu1)
+    print(resp)
+    checks = ['domo','arrigato','mr','roboto']
+    resp = M.index_userin_list("Is this insane?",tests,mainmenu1)
+    print(resp)
+
+
+if __name__=="__main__":
+    main()
+    
+    
+
+""" #NOTES
