@@ -151,7 +151,7 @@ def main():
     resp = M.index_userin("Is this sane?",tests,mainmenu1)
     print(resp)
     checks = ['domo','arrigato','mr','roboto']
-    resp = M.index_userin_list("Is this insane?",tests,mainmenu1)
+    resp = M.index_userin_list("Is this insane?",checks,mainmenu1)
     print(resp)
 
 
