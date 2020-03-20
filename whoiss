@@ -1,29 +1,112 @@
 #!/usr/bin/env python2.7
-import sys, os, subprocess
+import sys, os, subprocess, argparse, select, re
 
-#####
-##
-## Takes multiline IP address input via HEREDOC input style and outputs abbreviated WHOIS identity.
-##
-#####
+NOTES="""
+			Bulk whois lookup tool
+			Updated with several options for input and output.
+			Input:
+				1. stdin - 			pipe a newline-delimited list of IPs/CIDRs in
+				2. file - 			read list of IPs/CIDRs in from file  (can be CSV; select by col index, zero-origin)
+				3. interactive -	interactive mode; heredoc style input
+			Output:
+				1. print to stdout
+				2. write to file
+			Line formats:
+				1. Paragraph (default)
+				2. Single-line
+"""
 
-def taker():
-    line = "***"
-    masterlist = []
-    print("\n[!!] Give heredoc.  End input with \"EOF\" or \"e\".  Quit with \"exit\".:")
-    while line != "EOF" and line != "exit" and line != "e":
-        line=raw_input("")
-        if line == "exit":
-            sys.exit()
-        if line != "EOF" and line != "e":
-            masterlist.append(line)
-    for item in masterlist:
-        temp = str(subprocess.Popen('whois ' + item + " " + " | grep -iE \"cidr|owner|netname|netrange|inetnum|descr|country|orgname|orgid|route\"",
-            shell=True, stdout=subprocess.PIPE).stdout.read())
-        print("IP: " + item + "\n" + temp)
+
+class whoisiter():
+	def __init__(s,infile=None,index=0,outfile=None,single=False):
+		ap = argparse.ArgumentParser(description="WHOIS iterator; IPs or CIDRs")
+		ap.add_argument("-i","--infile",type=str,default=infile,help="Input file")
+		ap.add_argument("-I","--index",type=int,default=index,help="Input file index to read from")
+		ap.add_argument("-o",'--outfile',type=str,default=outfile,help="Output file to write to (instead of stdout")
+		ap.add_argument("-s","--single",action="store_true",default=single,help="Output in single line format")
+		ar,trash = ap.parse_known_args()
+		args = vars(ar)
+		s.infile = 		args['infile']
+		s.index =		args['index']
+		s.outfile = 	args['outfile']
+		s.single = 		args['single']
+		s.buffer = 		[]
+		s.outbuf = 		[]
+		if select.select([sys.stdin],[],[],0.0)[0]:
+			## stdin pipe
+			s.buffer = [x.rstrip("\n") for x in sys.stdin.readlines()]
+			s.whois()
+		elif not s.infile == None:
+			## file input
+			s.buffer = [y[s.index] for y in [x.split(",") for x in open(s.infile,'r').read().split("\n")]]
+			s.whois()
+		else:
+			## interactive
+			while True:
+				s.outbuf = []
+				s.taker()
+		
+		
+	def whois(s):
+		for item in s.buffer:
+			theip = ""
+			pat = re.compile("[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}")
+			try:
+				if "/" in item:
+					theip = re.findall(pat,item.split("/")[0])[0]
+				else:
+					theip = re.findall(pat,item)[0]
+				if len(theip) >= 7 and len(theip) <= 15:
+					temp = str(subprocess.Popen('whois ' + theip + 
+						" " + " | grep -iE \"cidr|owner|netname|netrange|inetnum|descr|country|orgname|orgid|route\"",
+						shell=True, stdout=subprocess.PIPE).stdout.read()) 
+					temp = s.output_handler(theip,temp)	
+			except:
+				pass
+		s.write()
+
+
+	def write(s):
+		if not s.outfile == None:
+			with open(s.outfile,'w') as F:
+				for item in s.outbuf:
+					F.write(item + "\n")
+				F.close()
+		
+
+	def taker(s):
+		line = "***"
+		print("\n[!!] Give heredoc.  End input with \"EOF\" or \"e\".  Quit with \"exit\".:")
+		while line != "EOF" and line != "exit" and line != "e":
+			line=raw_input("")
+			if line == "exit":
+				sys.exit()
+			if line != "EOF" and line != "e":
+				s.buffer.append(line)
+		s.whois()
+		
+
+	def output_handler(s,ip,temp):
+		theip = ip
+		if s.single:
+			pmet = temp.replace("\n"," || ")
+			pat = re.compile("  ")
+			while len(re.findall(pat,pmet)):
+				pmet = pmet.replace("  "," ")
+			temp = theip + " || " + pmet 
+		else:
+			pmet = temp
+			temp = "IP: " + theip + "\n" + pmet 
+		if not s.outfile == None:
+			s.outbuf.append(temp)
+		else:
+			print(temp)
+		return temp
+
+
+def main():
+	X = whoisiter()
 
 
 if __name__ == "__main__":
-    while True:
-        taker()
-
+	main()
